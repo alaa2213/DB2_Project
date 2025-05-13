@@ -12,12 +12,14 @@ import java.util.Set;
 public class DBApp
 {
 	static int dataPageSize = 2;
+	static Map<String, Set<String>> indexedColumns = new HashMap<>();
 
 
 	public static void createTable(String tableName, String[] columnsNames)
 	{
 		Table t = new Table(tableName, columnsNames);
 		FileManager.storeTable(tableName, t);
+		indexedColumns.putIfAbsent(tableName, new HashSet<>());
 	}
 
 	public static void insert(String tableName, String[] record)
@@ -25,6 +27,10 @@ public class DBApp
 		Table t = FileManager.loadTable(tableName);
 		t.insert(record);
 		FileManager.storeTable(tableName, t);
+		Set<String> columns = indexedColumns.getOrDefault(tableName, new HashSet<>());
+	    for (String colName : columns) {
+	        BitMapIndex.createBitMapIndex(tableName, colName);
+	    }
 	}
 
 	public static ArrayList<String []> select(String tableName)
@@ -150,7 +156,15 @@ public class DBApp
 			    table.getTrace().add("Recovering " + missing.size() + " records in pages: " + recoveredPages+".");
 			    FileManager.storeTable(tableName, table);
 		 }
-		 
+	 
+	 public static void createBitMapIndex(String tableName, String colName) {
+		    BitMapIndex.createBitMapIndex(tableName, colName);
+		    indexedColumns.get(tableName).add(colName);
+		}
+	 
+	 public static String getValueBits(String tableName, String colName, String value) {
+		    return BitMapIndex.getValueBits(tableName, colName, value);
+		}
 	 
 
 	
@@ -167,12 +181,21 @@ public class DBApp
 	   
 	  String[] r3 = {"3", "stud3", "CS", "2", "2.4"}; 
 	  insert("student", r3); 
+	  
+	  createBitMapIndex("student", "gpa"); 
+	    createBitMapIndex("student", "major");
+	    
+	    System.out.println("Bitmap of the value of CS from the major index: " + getValueBits("student", "major", "CS")); 
+	    System.out.println("Bitmap of the value of 1.2 from the gpa index: " + getValueBits("student", "gpa", "1.2"));
 	   
 	  String[] r4 = {"4", "stud4", "CS", "9", "1.2"}; 
 	  insert("student", r4); 
 	   
 	  String[] r5 = {"5", "stud5", "BI", "4", "3.5"}; 
 	  insert("student", r5); 
+	  System.out.println("After new insertions:");  
+	    System.out.println("Bitmap of the value of CS from the major index: " + getValueBits("student", "major", "CS")); 
+	    System.out.println("Bitmap of the value of 1.2 from the gpa index: " + getValueBits("student", "gpa", "1.2"));
 	   
 	  //////// This is the code used to delete pages from the table 
 	  System.out.println("File Manager trace before deleting pages: "+FileManager.trace());
