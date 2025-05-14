@@ -165,6 +165,103 @@ public class DBApp
 	 public static String getValueBits(String tableName, String colName, String value) {
 		    return BitMapIndex.getValueBits(tableName, colName, value);
 		}
+	 private static ArrayList<String[]> linearFilter(ArrayList<String[]> candidates, String[] cols, String[] vals) {
+		    if (candidates == null) return new ArrayList<>();
+		    if (cols == null || vals == null || cols.length != vals.length) return candidates;
+
+		    Table dummy = new Table("dummy", cols);
+		    ArrayList<String[]> filtered = new ArrayList<>();
+
+		    for (String[] record : candidates) {
+		        boolean match = true;
+		        for (int i = 0; i < cols.length; i++) {
+		            int colIndex = Arrays.asList(dummy.columnsNames).indexOf(cols[i]);
+		            if (colIndex != -1 && !record[colIndex].equals(vals[i])) {
+		                match = false;
+		                break;
+		            }
+		        }
+		        if (match) filtered.add(record);
+		    }
+
+		    return filtered;
+		}
+	 private static ArrayList<String[]> intersectResults(HashMap<String, ArrayList<String[]>> indexedResults, String[] cols) {
+		    if (cols.length == 0) return new ArrayList<>();
+
+		    Set<List<String>> resultSet = new HashSet<>();
+		    boolean first = true;
+
+		    for (String col : cols) {
+		        ArrayList<String[]> list = indexedResults.get(col);
+		        if (list == null) continue;
+
+		        Set<List<String>> currentSet = new HashSet<>();
+		        for (String[] r : list) {
+		            currentSet.add(Arrays.asList(r));
+		        }
+
+		        if (first) {
+		            resultSet = currentSet;
+		            first = false;
+		        } else {
+		            resultSet.retainAll(currentSet); // AND operation
+		        }
+		    }
+
+		    ArrayList<String[]> result = new ArrayList<>();
+		    for (List<String> rowList : resultSet) {
+		        result.add(rowList.toArray(new String[0]));
+		    }
+		    return result;
+		}
+	 public static ArrayList<String[]> selectIndex(String tableName, String[] cols, String[] vals) {
+		    Table table = FileManager.loadTable(tableName);
+		    if (table == null) return new ArrayList<>();
+
+		    HashMap<String, ArrayList<String[]>> indexedResults = new HashMap<>();
+		    ArrayList<Integer> indexedCols = new ArrayList<>();
+		    ArrayList<Integer> nonIndexedCols = new ArrayList<>();
+
+		    // Classify columns into indexed and non-indexed
+		    for (int i = 0; i < cols.length; i++) {
+		        if (IndexManager.hasIndex(tableName, cols[i])) {
+		            indexedCols.add(i);
+		        } else {
+		            nonIndexedCols.add(i);
+		        }
+		    }
+
+		    // Use index to collect result sets for indexed columns
+		    for (int i : indexedCols) {
+		        ArrayList<String[]> res = IndexManager.selectIndex(tableName, cols[i], vals[i]);
+		        indexedResults.put(cols[i], res);
+		    }
+
+		    // Case 1: All columns are indexed
+		    if (indexedCols.size() == cols.length && !indexedCols.isEmpty()) {
+		        ArrayList<String[]> andResult = intersectResults(indexedResults, cols);
+		        return andResult;
+		    }
+
+		    // Case 2: Only one column is indexed
+		    if (indexedCols.size() == 1 && cols.length > 1) {
+		        int idx = indexedCols.get(0);
+		        ArrayList<String[]> partial = indexedResults.get(cols[idx]);
+		        return linearFilter(partial, cols, vals);
+		    }
+
+		    // Case 3: Multiple but not all columns are indexed
+		    if (!indexedCols.isEmpty() && indexedCols.size() < cols.length) {
+		        ArrayList<String[]> andResult = intersectResults(indexedResults, cols);
+		        return linearFilter(andResult, cols, vals);
+		    }
+
+		    // Case 4: No indices
+		    return table.select(cols, vals); // Fallback to linear scan
+		}
+
+
 	 
 
 	
@@ -198,31 +295,74 @@ public class DBApp
 	    System.out.println("Bitmap of the value of 1.2 from the gpa index: " + getValueBits("student", "gpa", "1.2"));
 	   
 	  //////// This is the code used to delete pages from the table 
-	  System.out.println("File Manager trace before deleting pages: "+FileManager.trace());
-	  String path = 
-	FileManager.class.getResource("FileManager.class").toString(); 
-	     File directory = new File(path.substring(6,path.length()-17) + 
-	File.separator 
-	       + "Tables//student" + File.separator); 
-	     File[] contents = directory.listFiles(); 
-	     int[] pageDel = {0,2}; 
-	for(int i=0;i<pageDel.length;i++) 
-	{ 
-	contents[pageDel[i]].delete(); 
-	} 
+//	  System.out.println("File Manager trace before deleting pages: "+FileManager.trace());
+//	  String path = 
+//	FileManager.class.getResource("FileManager.class").toString(); 
+//	     File directory = new File(path.substring(6,path.length()-17) + 
+//	File.separator 
+//	       + "Tables//student" + File.separator); 
+//	     File[] contents = directory.listFiles(); 
+//	     int[] pageDel = {0,2}; 
+//	for(int i=0;i<pageDel.length;i++) 
+//	{ 
+//	contents[pageDel[i]].delete(); 
+//	} 
 	////////End of deleting pages code 
-	System.out.println("File Manager trace after deleting pages: "+FileManager.trace()); 
-	ArrayList<String[]> tr = validateRecords("student"); 
-	System.out.println("Missing records count: "+tr.size()); 
-	recoverRecords("student", tr); 
-	System.out.println("--------------------------------"); 
-	System.out.println("Recovering the missing records."); 
-	tr = validateRecords("student"); 
-	System.out.println("Missing record count: "+tr.size()); 
-	System.out.println("File Manager trace after recovering missing records: "+FileManager.trace()); 
-	System.out.println("--------------------------------"); 
-	System.out.println("Full trace of the table: "); 
-	System.out.println(getFullTrace("student")); 
+//	System.out.println("File Manager trace after deleting pages: "+FileManager.trace()); 
+//	ArrayList<String[]> tr = validateRecords("student"); 
+//	System.out.println("Missing records count: "+tr.size()); 
+//	recoverRecords("student", tr); 
+//	System.out.println("--------------------------------"); 
+//	System.out.println("Recovering the missing records."); 
+//	tr = validateRecords("student"); 
+//	System.out.println("Missing record count: "+tr.size()); 
+//	System.out.println("File Manager trace after recovering missing records: "+FileManager.trace()); 
+//	System.out.println("--------------------------------"); 
+//	System.out.println("Full trace of the table: "); 
+//	System.out.println(getFullTrace("student")); 
+	System.out.println("Output of selection using index when all columns of 
+			the select conditions are indexed:"); 
+			  ArrayList<String[]> result1 = selectIndex("student", new String[] 
+			{"major","gpa"}, new String[] {"CS","1.2"}); 
+			        for (String[] array : result1) { 
+			            for (String str : array) { 
+			                System.out.print(str + " "); 
+			            } 
+			            System.out.println(); 
+			        } 
+			  System.out.println("Last trace of the table: "+getLastTrace("student")); 
+			        System.out.println("--------------------------------"); 
+			         
+			  System.out.println("Output of selection using index when only one column 
+			of the columns of the select conditions are indexed:"); 
+			  ArrayList<String[]> result2 = selectIndex("student", new String[] 
+			{"major","semester"}, new String[] {"CS","5"}); 
+			        for (String[] array : result2) { 
+			            for (String str : array) { 
+			                System.out.print(str + " "); 
+			            } 
+			            System.out.println(); 
+			        } 
+			  System.out.println("Last trace of the table: "+getLastTrace("student")); 
+			        System.out.println("--------------------------------");
+			        System.out.println("Output of selection using index when some of the columns 
+			        		of the select conditions are indexed:"); 
+			        		ArrayList<String[]> result3 = selectIndex("student", new String[] 
+			        		{"major","semester","gpa" }, new String[] {"CS","5", "0.9"}); 
+			        		for (String[] array : result3) { 
+			        		for (String str : array) { 
+			        		System.out.print(str + " "); 
+			        		} 
+			        		System.out.println(); 
+			        		} 
+			        		System.out.println("Last trace of the table: "+getLastTrace("student")); 
+			        		System.out.println("--------------------------------"); 
+			        		System.out.println("Full Trace of the table:"); 
+			        		System.out.println(getFullTrace("student")); 
+			        		System.out.println("--------------------------------"); 
+			        		System.out.println("The trace of the Tables Folder:"); 
+			        		System.out.println(FileManager.trace()); 
+			        		} 
 } 
 
 }
