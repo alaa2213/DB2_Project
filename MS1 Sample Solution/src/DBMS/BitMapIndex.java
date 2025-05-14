@@ -34,7 +34,7 @@ public class BitMapIndex implements Serializable {
                 ArrayList<String[]> records = page.select();
                 int recordPos = totalRecords;
                 for (String[] record : records) {
-                    String value = record[Arrays.asList(table.getColumnsNames()).indexOf(colName)];
+                    String value = record[Arrays.asList(table.getcolName()).indexOf(colName)];
                     valuePositions.computeIfAbsent(value, k -> new ArrayList<>()).add(recordPos);
                     recordPos++;
                 }
@@ -65,13 +65,25 @@ public class BitMapIndex implements Serializable {
         }
         
         long Endtime=System.currentTimeMillis();
-        table.getTrace().add("Index created for column:"+ colName + " execution time,"+ (Endtime-Starttime));
+        String traceEntry = "Index created for column:" + colName;
+        boolean exists = table.getTrace().stream().anyMatch(entry -> entry.startsWith(traceEntry));
+
+        if (!exists) {
+            table.getTrace().add(traceEntry + " execution time," + (Endtime - Starttime));
+        }
+
+       
         FileManager.storeTable(tableName, table);
     }
 
     public static String getValueBits(String tableName, String colName, String value) {
         File tableDirectory = new File(FileManager.directory, tableName);
         File indexFile = new File(tableDirectory, tableName + "_" + colName + ".bmi");
+
+        // 🛑 Check if index exists before loading
+        if (!indexFile.exists()) {
+            return null; // No index available for this column
+        }
 
         BitMapIndex index = null;
         try {
@@ -86,6 +98,4 @@ public class BitMapIndex implements Serializable {
 
         return index.bitVectors.getOrDefault(value, "");
     }
-    
-    
 }

@@ -36,6 +36,9 @@ public class Table implements Serializable
 	public void addPage(Page p) {
 	    pages.add(p);
 	}
+	public String[] getcolName() {
+		return this.columnsNames;
+	}
 
 	public ArrayList<String> getTrace() {
 		return this.trace;

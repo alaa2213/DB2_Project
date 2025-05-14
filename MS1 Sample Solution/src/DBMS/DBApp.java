@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -165,27 +166,24 @@ public class DBApp
 	 public static String getValueBits(String tableName, String colName, String value) {
 		    return BitMapIndex.getValueBits(tableName, colName, value);
 		}
-	 private static ArrayList<String[]> linearFilter(ArrayList<String[]> candidates, String[] cols, String[] vals) {
-		    if (candidates == null) return new ArrayList<>();
-		    if (cols == null || vals == null || cols.length != vals.length) return candidates;
-
-		    Table dummy = new Table("dummy", cols);
+	 private static ArrayList<String[]> linearFilter(ArrayList<String[]> records, String[] cols, String[] vals, Table table) {
 		    ArrayList<String[]> filtered = new ArrayList<>();
-
-		    for (String[] record : candidates) {
+		    for (String[] record : records) {
 		        boolean match = true;
 		        for (int i = 0; i < cols.length; i++) {
-		            int colIndex = Arrays.asList(dummy.columnsNames).indexOf(cols[i]);
-		            if (colIndex != -1 && !record[colIndex].equals(vals[i])) {
+		            int colIndex = Arrays.asList(table.getcolName()).indexOf(cols[i]);
+		            if (!record[colIndex].equals(vals[i])) {
 		                match = false;
 		                break;
 		            }
 		        }
-		        if (match) filtered.add(record);
+		        if (match) {
+		            filtered.add(record);
+		        }
 		    }
-
 		    return filtered;
 		}
+
 	 private static ArrayList<String[]> intersectResults(HashMap<String, ArrayList<String[]>> indexedResults, String[] cols) {
 		    if (cols.length == 0) return new ArrayList<>();
 
@@ -216,49 +214,124 @@ public class DBApp
 		    return result;
 		}
 	 public static ArrayList<String[]> selectIndex(String tableName, String[] cols, String[] vals) {
+		    long startTime = System.currentTimeMillis();
+
 		    Table table = FileManager.loadTable(tableName);
 		    if (table == null) return new ArrayList<>();
 
-		    HashMap<String, ArrayList<String[]>> indexedResults = new HashMap<>();
 		    ArrayList<Integer> indexedCols = new ArrayList<>();
 		    ArrayList<Integer> nonIndexedCols = new ArrayList<>();
 
-		    // Classify columns into indexed and non-indexed
+		    // Classify columns
 		    for (int i = 0; i < cols.length; i++) {
-		        if (IndexManager.hasIndex(tableName, cols[i])) {
+		        File indexFile = new File(FileManager.directory + "/" + tableName,
+		                tableName + "_" + cols[i] + ".bmi");
+		        if (indexFile.exists()) {
 		            indexedCols.add(i);
 		        } else {
 		            nonIndexedCols.add(i);
 		        }
 		    }
 
-		    // Use index to collect result sets for indexed columns
-		    for (int i : indexedCols) {
-		        ArrayList<String[]> res = IndexManager.selectIndex(tableName, cols[i], vals[i]);
-		        indexedResults.put(cols[i], res);
+		    String combinedBits = null;
+		    int indexedSelectionCount = 0;
+		    ArrayList<String[]> selectedRecords = new ArrayList<>();
+
+		    // Step 1: Apply bitmap AND for all indexed conditions
+		    if (!indexedCols.isEmpty()) {
+		        ArrayList<String> bitVectors = new ArrayList<>();
+
+		        for (int i : indexedCols) {
+		            String bits = BitMapIndex.getValueBits(tableName, cols[i], vals[i]);
+		            if (bits == null || bits.isEmpty()) {
+		                combinedBits = null;
+		                break;
+		            }
+		            bitVectors.add(bits);
+		        }
+
+		        if (!bitVectors.isEmpty()) {
+		            int length = bitVectors.get(0).length();
+		            StringBuilder result = new StringBuilder();
+		            for (int j = 0; j < length; j++) {
+		                boolean isOne = true;
+		                for (String bv : bitVectors) {
+		                    if (bv.charAt(j) != '1') {
+		                        isOne = false;
+		                        break;
+		                    }
+		                }
+		                result.append(isOne ? '1' : '0');
+		            }
+		            combinedBits = result.toString();
+		        }
+
+		        // Step 2: Collect records based on bitmap result
+		        if (combinedBits != null) {
+		            int recordIndex = 0;
+		            for (int i = 0; i < table.getPageCount(); i++) {
+		                Page page = FileManager.loadTablePage(tableName, i);
+		                ArrayList<String[]> records = page.select();
+		                for (String[] record : records) {
+		                    if (recordIndex < combinedBits.length() && combinedBits.charAt(recordIndex) == '1') {
+		                        selectedRecords.add(record);
+		                    }
+		                    recordIndex++;
+		                }
+		            }
+		            indexedSelectionCount = selectedRecords.size();
+		        }
 		    }
 
-		    // Case 1: All columns are indexed
-		    if (indexedCols.size() == cols.length && !indexedCols.isEmpty()) {
-		        ArrayList<String[]> andResult = intersectResults(indexedResults, cols);
-		        return andResult;
+		    ArrayList<String[]> finalResult = new ArrayList<>();
+
+		    // Step 3: Apply linear filtering for non-indexed columns
+		    if (!indexedCols.isEmpty()) {
+		        for (String[] record : selectedRecords) {
+		            boolean match = true;
+		            for (int i : nonIndexedCols) {
+		                int colIndex = Arrays.asList(table.getcolName()).indexOf(cols[i]);
+		                if (!record[colIndex].equals(vals[i])) {
+		                    match = false;
+		                    break;
+		                }
+		            }
+		            if (match) {
+		                finalResult.add(record);
+		            }
+		        }
+		    } else {
+		        // No indexed columns, full scan
+		        finalResult = table.select(cols, vals);
 		    }
 
-		    // Case 2: Only one column is indexed
-		    if (indexedCols.size() == 1 && cols.length > 1) {
-		        int idx = indexedCols.get(0);
-		        ArrayList<String[]> partial = indexedResults.get(cols[idx]);
-		        return linearFilter(partial, cols, vals);
+		    // Step 4: Trace output
+		    StringBuilder trace = new StringBuilder();
+		    trace.append("Select index condition:")
+		         .append(Arrays.toString(cols)).append("->").append(Arrays.toString(vals)).append(", ");
+
+		    ArrayList<String> indexedColNames = new ArrayList<>();
+		    ArrayList<String> nonIndexedColNames = new ArrayList<>();
+		    for (int i : indexedCols) indexedColNames.add(cols[i]);
+		    for (int i : nonIndexedCols) nonIndexedColNames.add(cols[i]);
+
+		    trace.append("Indexed columns: ").append(indexedColNames);
+		    if (!nonIndexedColNames.isEmpty()) {
+		        trace.append(", Non-indexed columns: ").append(nonIndexedColNames);
+		    }
+		    if (!indexedCols.isEmpty()) {
+		        trace.append(", Indexed selection count: ").append(indexedSelectionCount);
 		    }
 
-		    // Case 3: Multiple but not all columns are indexed
-		    if (!indexedCols.isEmpty() && indexedCols.size() < cols.length) {
-		        ArrayList<String[]> andResult = intersectResults(indexedResults, cols);
-		        return linearFilter(andResult, cols, vals);
+		    trace.append(", Final count: ").append(finalResult.size());
+		    trace.append(", execution time (mil):").append(System.currentTimeMillis() - startTime);
+
+		    if (!table.getTrace().contains(trace.toString())) {
+		        table.getTrace().add(trace.toString());
+		        FileManager.storeTable(tableName, table);
 		    }
 
-		    // Case 4: No indices
-		    return table.select(cols, vals); // Fallback to linear scan
+		    return finalResult;
 		}
 
 
@@ -320,8 +393,7 @@ public class DBApp
 //	System.out.println("--------------------------------"); 
 //	System.out.println("Full trace of the table: "); 
 //	System.out.println(getFullTrace("student")); 
-	System.out.println("Output of selection using index when all columns of 
-			the select conditions are indexed:"); 
+	System.out.println("Output of selection using index when all columns of the select conditions are indexed:"); 
 			  ArrayList<String[]> result1 = selectIndex("student", new String[] 
 			{"major","gpa"}, new String[] {"CS","1.2"}); 
 			        for (String[] array : result1) { 
@@ -333,8 +405,7 @@ public class DBApp
 			  System.out.println("Last trace of the table: "+getLastTrace("student")); 
 			        System.out.println("--------------------------------"); 
 			         
-			  System.out.println("Output of selection using index when only one column 
-			of the columns of the select conditions are indexed:"); 
+			  System.out.println("Output of selection using index when only one column of the columns of the select conditions are indexed:"); 
 			  ArrayList<String[]> result2 = selectIndex("student", new String[] 
 			{"major","semester"}, new String[] {"CS","5"}); 
 			        for (String[] array : result2) { 
@@ -345,8 +416,7 @@ public class DBApp
 			        } 
 			  System.out.println("Last trace of the table: "+getLastTrace("student")); 
 			        System.out.println("--------------------------------");
-			        System.out.println("Output of selection using index when some of the columns 
-			        		of the select conditions are indexed:"); 
+			        System.out.println("Output of selection using index when some of the columns of the select conditions are indexed:"); 
 			        		ArrayList<String[]> result3 = selectIndex("student", new String[] 
 			        		{"major","semester","gpa" }, new String[] {"CS","5", "0.9"}); 
 			        		for (String[] array : result3) { 
@@ -365,4 +435,4 @@ public class DBApp
 			        		} 
 } 
 
-}
+
