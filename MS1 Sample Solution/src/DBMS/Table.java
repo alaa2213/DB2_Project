@@ -3,6 +3,8 @@ package DBMS;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class Table implements Serializable
 {
@@ -168,7 +170,12 @@ public class Table implements Serializable
 		{
 			res+=this.trace.get(i)+"\n";
 		}
-		return res+ "Pages Count: " + pageCount + ", Records Count: " + recordsCount;
+		 res+= "Pages Count: " + pageCount + ", Records Count: " + recordsCount;
+		 Set<String> indexedCols = DBApp.indexedColumns.getOrDefault(name, new HashSet<>());
+		    if (!indexedCols.isEmpty()) {
+		        res += ", Indexed Columns: " + indexedCols.toString();
+		    }
+		    return res;
 	}
 	
 	public String getLastTrace() 

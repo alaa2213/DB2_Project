@@ -54,7 +54,7 @@ public class BitMapIndex implements Serializable {
 
         // Store the index to disk
         File tableDirectory = new File(FileManager.directory, tableName);
-        File indexFile = new File(tableDirectory, tableName + "_" + colName + ".bmi");
+        File indexFile = new File(tableDirectory, tableName + "_" + colName + ".db");
         try {
             FileOutputStream fout = new FileOutputStream(indexFile);
             ObjectOutputStream oos = new ObjectOutputStream(fout);
@@ -78,7 +78,7 @@ public class BitMapIndex implements Serializable {
 
     public static String getValueBits(String tableName, String colName, String value) {
         File tableDirectory = new File(FileManager.directory, tableName);
-        File indexFile = new File(tableDirectory, tableName + "_" + colName + ".bmi");
+        File indexFile = new File(tableDirectory, tableName + "_" + colName + ".db");
 
         // 🛑 Check if index exists before loading
         if (!indexFile.exists()) {

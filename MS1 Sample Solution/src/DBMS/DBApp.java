@@ -225,7 +225,7 @@ public class DBApp
 		    // Classify columns
 		    for (int i = 0; i < cols.length; i++) {
 		        File indexFile = new File(FileManager.directory + "/" + tableName,
-		                tableName + "_" + cols[i] + ".bmi");
+		                tableName + "_" + cols[i] + ".db");
 		        if (indexFile.exists()) {
 		            indexedCols.add(i);
 		        } else {
@@ -316,11 +316,11 @@ public class DBApp
 		    for (int i : nonIndexedCols) nonIndexedColNames.add(cols[i]);
 
 		    trace.append("Indexed columns: ").append(indexedColNames);
-		    if (!nonIndexedColNames.isEmpty()) {
-		        trace.append(", Non-indexed columns: ").append(nonIndexedColNames);
-		    }
 		    if (!indexedCols.isEmpty()) {
-		        trace.append(", Indexed selection count: ").append(indexedSelectionCount);
+		    	trace.append(", Indexed selection count: ").append(indexedSelectionCount);
+		    }
+		    if (!nonIndexedColNames.isEmpty()) {
+		        trace.append(", Non-indexed: ").append(nonIndexedColNames);
 		    }
 
 		    trace.append(", Final count: ").append(finalResult.size());
