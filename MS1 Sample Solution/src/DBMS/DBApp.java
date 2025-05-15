@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -314,7 +315,8 @@ public class DBApp
 		    ArrayList<String> nonIndexedColNames = new ArrayList<>();
 		    for (int i : indexedCols) indexedColNames.add(cols[i]);
 		    for (int i : nonIndexedCols) nonIndexedColNames.add(cols[i]);
-
+	    
+	    Collections.sort(indexedColNames);
 		    trace.append("Indexed columns: ").append(indexedColNames);
 		    if (!indexedCols.isEmpty()) {
 		    	trace.append(", Indexed selection count: ").append(indexedSelectionCount);
@@ -325,7 +327,8 @@ public class DBApp
 
 		    trace.append(", Final count: ").append(finalResult.size());
 		    trace.append(", execution time (mil):").append(System.currentTimeMillis() - startTime);
-
+		  
+			
 		    if (!table.getTrace().contains(trace.toString())) {
 		        table.getTrace().add(trace.toString());
 		        FileManager.storeTable(tableName, table);
