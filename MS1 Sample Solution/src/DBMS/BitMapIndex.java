@@ -80,9 +80,8 @@ public class BitMapIndex implements Serializable {
         File tableDirectory = new File(FileManager.directory, tableName);
         File indexFile = new File(tableDirectory, tableName + "_" + colName + ".db");
 
-        // 🛑 Check if index exists before loading
         if (!indexFile.exists()) {
-            return null; // No index available for this column
+            return null;
         }
 
         BitMapIndex index = null;
@@ -96,6 +95,21 @@ public class BitMapIndex implements Serializable {
             return null;
         }
 
-        return index.bitVectors.getOrDefault(value, "");
+        String bits = index.bitVectors.get(value);
+        if (bits != null) return bits;
+
+        // Generate zero-filled bit vector for unseen value
+        int vectorLength = index.bitVectors.values().stream()
+            .findAny()
+            .map(String::length)
+            .orElse(0);
+
+        StringBuilder zeros = new StringBuilder();
+        for (int i = 0; i < vectorLength; i++) {
+            zeros.append('0');
+        }
+        return zeros.toString();
+
     }
+
 }
