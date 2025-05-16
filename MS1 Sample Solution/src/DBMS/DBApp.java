@@ -322,6 +322,7 @@ public class DBApp
 		    	trace.append(", Indexed selection count: ").append(indexedSelectionCount);
 		    }
 		    if (!nonIndexedColNames.isEmpty()) {
+		    	Collections.sort(nonIndexedColNames);
 		        trace.append(", Non Indexed: ").append(nonIndexedColNames);
 		    }
 
