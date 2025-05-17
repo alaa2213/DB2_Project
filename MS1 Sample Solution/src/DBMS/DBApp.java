@@ -396,17 +396,19 @@ public class DBApp
 		    for (int i : indexedCols) indexedColNames.add(cols[i]);
 		    for (int i : nonIndexedCols) nonIndexedColNames.add(cols[i]);
 
-	    if(!indexedColNames.isEmpty()) {
-	    	Collections.sort(indexedColNames);
+		    Collections.sort(indexedColNames);
 		    trace.append("Indexed columns: ").append(indexedColNames);
-		    if (!indexedCols.isEmpty()) {
-		    	trace.append(", Indexed selection count: ").append(indexedSelectionCount);
+
+		    if (!indexedColNames.isEmpty()) {
+		        trace.append(", Indexed selection count: ").append(indexedSelectionCount);
 		    }
-		    }
-		    if (!nonIndexedColNames.isEmpty()) {
+
+		    
+	  
+		   
 		    	Collections.sort(nonIndexedColNames);
 		        trace.append(", Non Indexed: ").append(nonIndexedColNames);
-		    }
+		   
 		    trace.append(", Final count: ").append(finalResult.size());
 		    trace.append(", execution time (mil):").append(System.currentTimeMillis() - startTime);
 

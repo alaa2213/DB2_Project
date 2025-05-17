@@ -206,12 +206,18 @@ public class Table implements Serializable {
         }
         
         // Append column information
-        if(!indexedCols.isEmpty()) {
-			
+      
+			if(!indexedCols.isEmpty()) {
         	 List<String> sortedIndexed = new ArrayList<>(indexedCols);
      	    Collections.sort(sortedIndexed);
             sb.append(", Indexed Columns: ").append(sortedIndexed);
-        }
+			}
+			else {
+				indexedCols = new HashSet<>();
+				 DBApp.indexedColumns.put(name, indexedCols); 
+				sb.append(", Indexed Columns: ").append(indexedCols);
+				
+			}
         
         
         return sb.toString();
