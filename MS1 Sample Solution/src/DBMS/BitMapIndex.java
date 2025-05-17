@@ -9,6 +9,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class BitMapIndex implements Serializable {
@@ -19,28 +20,39 @@ public class BitMapIndex implements Serializable {
     }
 
     public static void createBitMapIndex(String tableName, String colName) {
-    	long Starttime=System.currentTimeMillis();
+        long Starttime = System.currentTimeMillis();
         Table table = FileManager.loadTable(tableName);
         if (table == null) return;
 
+        // Check if column exists in the table
+        List<String> columns = Arrays.asList(table.getcolName());
+        if (!columns.contains(colName)) {
+            System.err.println("Column '" + colName + "' does not exist in table '" + tableName + "'");
+            return;
+        }
+
+        int colIndex = columns.indexOf(colName); // Now guaranteed to be >= 0
         BitMapIndex index = new BitMapIndex();
         int totalRecords = 0;
         Map<String, ArrayList<Integer>> valuePositions = new HashMap<>();
 
-        // Scan all pages to collect positions for each unique value
         for (int i = 0; i < table.getPageCount(); i++) {
             Page page = FileManager.loadTablePage(tableName, i);
             if (page != null) {
                 ArrayList<String[]> records = page.select();
                 int recordPos = totalRecords;
                 for (String[] record : records) {
-                    String value = record[Arrays.asList(table.getcolName()).indexOf(colName)];
+                    String value = record[colIndex]; // Safe access now
                     valuePositions.computeIfAbsent(value, k -> new ArrayList<>()).add(recordPos);
                     recordPos++;
                 }
                 totalRecords += records.size();
             }
         }
+
+        // Rest of the method remains the same...
+    
+        
 
         // Generate bit-vectors
         int maxLength = totalRecords;

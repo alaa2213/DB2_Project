@@ -395,31 +395,33 @@ public class DBApp
 		    ArrayList<String> nonIndexedColNames = new ArrayList<>();
 		    for (int i : indexedCols) indexedColNames.add(cols[i]);
 		    for (int i : nonIndexedCols) nonIndexedColNames.add(cols[i]);
-	    
-	    Collections.sort(indexedColNames);
+
+	    if(!indexedColNames.isEmpty()) {
+	    	Collections.sort(indexedColNames);
 		    trace.append("Indexed columns: ").append(indexedColNames);
 		    if (!indexedCols.isEmpty()) {
 		    	trace.append(", Indexed selection count: ").append(indexedSelectionCount);
+		    }
 		    }
 		    if (!nonIndexedColNames.isEmpty()) {
 		    	Collections.sort(nonIndexedColNames);
 		        trace.append(", Non Indexed: ").append(nonIndexedColNames);
 		    }
-
 		    trace.append(", Final count: ").append(finalResult.size());
 		    trace.append(", execution time (mil):").append(System.currentTimeMillis() - startTime);
+
+		    // Sort and finalize trace
+	  
 		  
 			
 		    if (!table.getTrace().contains(trace.toString())) {
 		        table.getTrace().add(trace.toString());
 		        FileManager.storeTable(tableName, table);
 		    }
-
+		    
 		    return finalResult;
 		}
-
-
-	 
+		    
 
 	
 	public static void main(String []args) throws IOException 

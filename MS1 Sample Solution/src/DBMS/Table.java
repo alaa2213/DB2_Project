@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -182,12 +183,37 @@ public class Table implements Serializable {
 
     public String getFullTrace() {
         StringBuilder sb = new StringBuilder();
+        
+        // Append all trace entries
         for (String entry : trace) {
             sb.append(entry).append("\n");
         }
-        sb.append("Pages Count: ").append(pageCount).append(", Records Count: ").append(recordsCount);
+        
+        // Append basic table info
+        sb.append("Pages Count: ").append(pageCount)
+          .append(", Records Count: ").append(recordsCount);
+        
+        // Get all table columns and indexed columns
+        String[] allColumns = this.getcolName();
         Set<String> indexedCols = DBApp.indexedColumns.getOrDefault(name, Collections.emptySet());
-        sb.append(", Indexed Columns: ").append(indexedCols);
+        
+        // Calculate non-indexed columns
+        Set<String> nonIndexedCols = new HashSet<>();
+        for (String col : allColumns) {
+            if (!indexedCols.contains(col)) {
+                nonIndexedCols.add(col);
+            }
+        }
+        
+        // Append column information
+        if(!indexedCols.isEmpty()) {
+			
+        	 List<String> sortedIndexed = new ArrayList<>(indexedCols);
+     	    Collections.sort(sortedIndexed);
+            sb.append(", Indexed Columns: ").append(sortedIndexed);
+        }
+        
+        
         return sb.toString();
     }
 
