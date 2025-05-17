@@ -22,7 +22,7 @@ public class DBApp
 	 public static void createTable(String tableName, String[] columnsNames) {
 	        Table t = new Table(tableName, columnsNames);
 	        FileManager.storeTable(tableName, t);
-	        indexedColumns.putIfAbsent(tableName, new HashSet<>());
+	        indexedColumns.put(tableName, new HashSet<>()); // Always set to empty
 	        tableCache.put(tableName, t); // Cache the new table
 	    }
 
@@ -40,8 +40,11 @@ public class DBApp
 	        
 	        // Update indexes
 	        Set<String> columns = indexedColumns.getOrDefault(tableName, new HashSet<>());
+	        
 	        for (String colName : columns) {
-	            BitMapIndex.createBitMapIndex(tableName, colName);
+	        	if (Arrays.asList(t.getcolName()).contains(colName)) {
+	                BitMapIndex.createBitMapIndex(tableName, colName);
+	            }
 	        }
 	    }
 	  
@@ -386,30 +389,32 @@ public class DBApp
 		        finalResult = table.select(cols, vals);
 		    }
 
-		    // Step 4: Trace output
+		    // Step 4: Modified trace output
 		    StringBuilder trace = new StringBuilder();
 		    trace.append("Select index condition:")
 		         .append(Arrays.toString(cols)).append("->").append(Arrays.toString(vals)).append(", ");
 
-		    ArrayList<String> indexedColNames = new ArrayList<>();
-		    ArrayList<String> nonIndexedColNames = new ArrayList<>();
-		    for (int i : indexedCols) indexedColNames.add(cols[i]);
-		    for (int i : nonIndexedCols) nonIndexedColNames.add(cols[i]);
-	    
-	    Collections.sort(indexedColNames);
-		    trace.append("Indexed columns: ").append(indexedColNames);
+		    // Only show indexed columns if they exist
 		    if (!indexedCols.isEmpty()) {
-		    	trace.append(", Indexed selection count: ").append(indexedSelectionCount);
+		        ArrayList<String> indexedColNames = new ArrayList<>();
+		        for (int i : indexedCols) indexedColNames.add(cols[i]);
+		        Collections.sort(indexedColNames);
+		        trace.append("Indexed columns: ").append(indexedColNames)
+		             .append(", Indexed selection count: ").append(indexedSelectionCount);
 		    }
-		    if (!nonIndexedColNames.isEmpty()) {
-		    	Collections.sort(nonIndexedColNames);
-		        trace.append(", Non Indexed: ").append(nonIndexedColNames);
+
+		    // Show non-indexed columns if they exist
+		    if (!nonIndexedCols.isEmpty()) {
+		        ArrayList<String> nonIndexedColNames = new ArrayList<>();
+		        for (int i : nonIndexedCols) nonIndexedColNames.add(cols[i]);
+		        Collections.sort(nonIndexedColNames);
+		        trace.append(indexedCols.isEmpty() ? "" : ", ")
+		             .append("Non Indexed: ").append(nonIndexedColNames);
 		    }
 
 		    trace.append(", Final count: ").append(finalResult.size());
 		    trace.append(", execution time (mil):").append(System.currentTimeMillis() - startTime);
-		  
-			
+
 		    if (!table.getTrace().contains(trace.toString())) {
 		        table.getTrace().add(trace.toString());
 		        FileManager.storeTable(tableName, table);
@@ -417,7 +422,6 @@ public class DBApp
 
 		    return finalResult;
 		}
-
 
 	 
 

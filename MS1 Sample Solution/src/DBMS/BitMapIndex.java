@@ -19,9 +19,17 @@ public class BitMapIndex implements Serializable {
     }
 
     public static void createBitMapIndex(String tableName, String colName) {
-    	long Starttime=System.currentTimeMillis();
+        long Starttime = System.currentTimeMillis();
         Table table = FileManager.loadTable(tableName);
         if (table == null) return;
+
+        // Add column validation
+        int colIndex = Arrays.asList(table.getcolName()).indexOf(colName);
+        if (colIndex == -1) {
+            table.getTrace().add("Failed to create index: Column '" + colName + "' not found");
+            FileManager.storeTable(tableName, table);
+            return;
+        }
 
         BitMapIndex index = new BitMapIndex();
         int totalRecords = 0;

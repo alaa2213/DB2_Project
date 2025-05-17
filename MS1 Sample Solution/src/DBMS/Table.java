@@ -185,9 +185,17 @@ public class Table implements Serializable {
         for (String entry : trace) {
             sb.append(entry).append("\n");
         }
-        sb.append("Pages Count: ").append(pageCount).append(", Records Count: ").append(recordsCount);
-        Set<String> indexedCols = DBApp.indexedColumns.getOrDefault(name, Collections.emptySet());
-        sb.append(", Indexed Columns: ").append(indexedCols);
+        sb.append("Pages Count: ").append(pageCount)
+          .append(", Records Count: ").append(recordsCount)
+          .append(", Indexed Columns: ");
+
+        // Get the indexed columns set - ensure we never get null
+        Set<String> indexedCols = DBApp.indexedColumns.containsKey(name) ? 
+                                DBApp.indexedColumns.get(name) : 
+                                Collections.emptySet();
+        
+        sb.append(indexedCols); // This will print [] for empty set
+        
         return sb.toString();
     }
 
