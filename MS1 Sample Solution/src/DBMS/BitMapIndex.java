@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class BitMapIndex implements Serializable {
-    private Map<String, String> bitVectors;
+    Map<String, String> bitVectors;
 
     public BitMapIndex() {
         this.bitVectors = new HashMap<>();

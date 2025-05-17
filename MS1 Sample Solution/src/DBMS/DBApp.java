@@ -1,7 +1,9 @@
 package DBMS;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,25 +17,37 @@ public class DBApp
 {
 	static int dataPageSize = 2;
 	static Map<String, Set<String>> indexedColumns = new HashMap<>();
+	 private static Map<String, Table> tableCache = new HashMap<>(); // Cache for loaded tables
 
-
-	public static void createTable(String tableName, String[] columnsNames)
-	{
-		Table t = new Table(tableName, columnsNames);
-		FileManager.storeTable(tableName, t);
-		indexedColumns.putIfAbsent(tableName, new HashSet<>());
-	}
-
-	public static void insert(String tableName, String[] record)
-	{
-		Table t = FileManager.loadTable(tableName);
-		t.insert(record);
-		FileManager.storeTable(tableName, t);
-		Set<String> columns = indexedColumns.getOrDefault(tableName, new HashSet<>());
-	    for (String colName : columns) {
-	        BitMapIndex.createBitMapIndex(tableName, colName);
+	 public static void createTable(String tableName, String[] columnsNames) {
+	        Table t = new Table(tableName, columnsNames);
+	        FileManager.storeTable(tableName, t);
+	        indexedColumns.putIfAbsent(tableName, new HashSet<>());
+	        tableCache.put(tableName, t); // Cache the new table
 	    }
-	}
+
+	  public static void insert(String tableName, String[] record) {
+	        // Check cache first
+	        Table t = tableCache.get(tableName);
+	        if (t == null) {
+	            t = FileManager.loadTable(tableName);
+	            if (t == null) throw new IllegalArgumentException("Table not found");
+	            tableCache.put(tableName, t);
+	        }
+
+	        t.insert(record);
+	        FileManager.storeTable(tableName, t);
+	        
+	        // Update indexes
+	        Set<String> columns = indexedColumns.getOrDefault(tableName, new HashSet<>());
+	        for (String colName : columns) {
+	            BitMapIndex.createBitMapIndex(tableName, colName);
+	        }
+	    }
+	  
+	  public static void clearCache() {
+	        tableCache.clear();
+	    }
 
 	public static ArrayList<String []> select(String tableName)
 	{
@@ -160,8 +174,74 @@ public class DBApp
 		 }
 	 
 	 public static void createBitMapIndex(String tableName, String colName) {
-		    BitMapIndex.createBitMapIndex(tableName, colName);
-		    indexedColumns.get(tableName).add(colName);
+		    long startTime = System.currentTimeMillis();
+		    
+		    // Load table and validate
+		    Table table = FileManager.loadTable(tableName);
+		    if (table == null) {
+		        return;
+		    }
+
+		    // Initialize data structures
+		    BitMapIndex index = new BitMapIndex();
+		    int totalRecords = 0;
+		    Map<String, ArrayList<Integer>> valuePositions = new HashMap<>();
+
+		    // Scan all pages and records
+		    for (int i = 0; i < table.getPageCount(); i++) {
+		        Page page = FileManager.loadTablePage(tableName, i);
+		        if (page != null) {
+		            ArrayList<String[]> records = page.select();
+		            int recordPos = totalRecords;
+		            for (String[] record : records) {
+		                int colIndex = Arrays.asList(table.getcolName()).indexOf(colName);
+		                if (colIndex >= 0 && colIndex < record.length) {
+		                    String value = record[colIndex];
+		                    valuePositions.computeIfAbsent(value, k -> new ArrayList<>()).add(recordPos);
+		                }
+		                recordPos++;
+		            }
+		            totalRecords += records.size();
+		        }
+		    }
+
+		    // Generate bit vectors
+		    for (Map.Entry<String, ArrayList<Integer>> entry : valuePositions.entrySet()) {
+		        StringBuilder bitVector = new StringBuilder();
+		        for (int j = 0; j < totalRecords; j++) {
+		            bitVector.append(entry.getValue().contains(j) ? "1" : "0");
+		        }
+		        index.bitVectors.put(entry.getKey(), bitVector.toString());
+		    }
+
+		    // Store index file
+		    File tableDirectory = new File(FileManager.directory, tableName);
+		    tableDirectory.mkdirs();
+		    File indexFile = new File(tableDirectory, tableName + "_" + colName + ".db");
+		    try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(indexFile))) {
+		        oos.writeObject(index);
+		    } catch (Exception e) {
+		        e.printStackTrace();
+		        return;
+		    }
+
+		    // Update indexed columns tracking
+		    indexedColumns.putIfAbsent(tableName, new HashSet<>());
+		    Set<String> tableIndexes = indexedColumns.get(tableName);
+		    boolean isNewIndex = tableIndexes.add(colName);
+
+		    // Add trace entry if this is a new index
+		    if (isNewIndex) {
+		        long endTime = System.currentTimeMillis();
+		        String traceMsg = String.format(
+		            "Index created for column: %s, values: %s, execution time: %dms",
+		            colName,
+		            valuePositions.keySet(),
+		            endTime - startTime
+		        );
+		        table.getTrace().add(traceMsg);
+		        FileManager.storeTable(tableName, table);
+		    }
 		}
 	 
 	 public static String getValueBits(String tableName, String colName, String value) {
